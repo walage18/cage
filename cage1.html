@@ -1,0 +1,2109 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEW GALLERA DE MANDAUE - Cell Cage Monitoring</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            darkbg: '#0b0f17',
+            cardbg: '#111827',
+            vacant: '#22c55e',
+            occupied: '#ef4444',
+            reserved: '#eab308',
+            maintenance: '#9ca3af',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- SheetJS for Excel Export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- jsPDF & AutoTable for PDF Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    /* Glow Border Effects */
+    .status-vacant {
+      border-color: #22c55e;
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.25);
+    }
+    .status-vacant:hover { box-shadow: 0 0 20px rgba(34, 197, 94, 0.45); }
+
+    .status-occupied {
+      border-color: #ef4444;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+    }
+    .status-occupied:hover { box-shadow: 0 0 20px rgba(239, 68, 68, 0.55); }
+
+    .status-reserved {
+      border-color: #eab308;
+      box-shadow: 0 0 12px rgba(234, 179, 8, 0.3);
+    }
+    .status-reserved:hover { box-shadow: 0 0 20px rgba(234, 179, 8, 0.55); }
+
+    .status-maintenance {
+      border-color: #9ca3af;
+      box-shadow: 0 0 12px rgba(156, 163, 175, 0.2);
+    }
+    .status-maintenance:hover { box-shadow: 0 0 18px rgba(156, 163, 175, 0.35); }
+
+    /* POS Thermal Ticket Printer Styling (80mm Continuous Paper) */
+    @media print {
+      @page {
+        size: 80mm auto;
+        margin: 0;
+      }
+
+      html, body {
+        width: 80mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+      }
+
+      body > *:not(#print-area) {
+        display: none !important;
+      }
+
+      #print-area {
+        display: block !important;
+        visibility: visible !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 78mm !important;
+        max-width: 78mm !important;
+        margin: 0 auto !important;
+        padding: 4mm !important;
+        color: #000000 !important;
+        background: #ffffff !important;
+        box-sizing: border-box !important;
+        font-family: Arial, Helvetica, sans-serif !important;
+      }
+
+      #print-area * {
+        visibility: visible !important;
+        color: #000000 !important;
+      }
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+  </style>
+</head>
+<body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- Main Navigation Header -->
+  <header class="bg-slate-900/90 border-b border-slate-800 sticky top-0 z-30 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Logo & Title -->
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-indigo-600/20 border border-indigo-500/30 rounded-lg text-indigo-400">
+          <i data-lucide="grid" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-none tracking-wide text-white uppercase">NEW GALLERA DE MANDAUE</h1>
+          <p class="text-xs text-slate-400 mt-0.5">Cell Cage Management & Ticket System</p>
+        </div>
+      </div>
+
+      <!-- Header Quick Actions -->
+      <div class="flex items-center space-x-2">
+        <button onclick="openHistoryModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-md text-xs font-semibold flex items-center space-x-1.5 transition border border-slate-700">
+          <i data-lucide="history" class="w-4 h-4"></i>
+          <span class="hidden md:inline">History Log</span>
+        </button>
+        <button onclick="openReportModal()" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-md text-xs font-semibold flex items-center space-x-1.5 transition">
+          <i data-lucide="file-text" class="w-4 h-4"></i>
+          <span class="hidden md:inline">Export & Reports</span>
+        </button>
+        <button onclick="openSettingsModal()" class="p-1.5 text-slate-400 hover:text-indigo-400 transition" title="Facility Settings">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+        </button>
+        <button onclick="resetAllCages()" class="p-1.5 text-slate-400 hover:text-red-400 transition" title="Reset All Cages">
+          <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Real-Time Statistics Bar -->
+  <section class="bg-slate-900/60 border-b border-slate-800/80 px-4 py-3">
+    <div class="max-w-7xl mx-auto grid grid-cols-2 sm:grid-cols-5 gap-3 text-center text-xs sm:text-sm font-semibold">
+      
+      <div class="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 flex flex-col items-center justify-center">
+        <span class="text-slate-400 text-[11px] uppercase tracking-wider">Total Cages</span>
+        <span id="stat-total" class="text-xl font-bold text-slate-100 mt-0.5">0</span>
+      </div>
+
+      <div class="bg-emerald-950/30 border border-emerald-900/50 rounded-lg p-2.5 flex flex-col items-center justify-center">
+        <div class="flex items-center space-x-1.5 text-emerald-400">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="text-[11px] uppercase tracking-wider">Vacant</span>
+        </div>
+        <span id="stat-vacant" class="text-xl font-bold text-emerald-400 mt-0.5">0</span>
+      </div>
+
+      <div class="bg-red-950/30 border border-red-900/50 rounded-lg p-2.5 flex flex-col items-center justify-center">
+        <div class="flex items-center space-x-1.5 text-red-400">
+          <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+          <span class="text-[11px] uppercase tracking-wider">Occupied</span>
+        </div>
+        <span id="stat-occupied" class="text-xl font-bold text-red-400 mt-0.5">0</span>
+      </div>
+
+      <div class="bg-yellow-950/30 border border-yellow-900/50 rounded-lg p-2.5 flex flex-col items-center justify-center">
+        <div class="flex items-center space-x-1.5 text-yellow-400">
+          <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse"></span>
+          <span class="text-[11px] uppercase tracking-wider">Reserved</span>
+        </div>
+        <span id="stat-reserved" class="text-xl font-bold text-yellow-400 mt-0.5">0</span>
+      </div>
+
+      <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-2.5 flex flex-col items-center justify-center col-span-2 sm:col-span-1">
+        <div class="flex items-center space-x-1.5 text-slate-300">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+          <span class="text-[11px] uppercase tracking-wider">Maintenance</span>
+        </div>
+        <span id="stat-maintenance" class="text-xl font-bold text-slate-300 mt-0.5">0</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Filter & Search Toolbar -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+      
+      <!-- Filter Tabs -->
+      <div class="flex items-center bg-slate-900 p-1 rounded-lg border border-slate-800 w-full md:w-auto overflow-x-auto text-xs font-medium">
+        <button onclick="setFilter('all')" id="filter-all" class="filter-btn px-4 py-2 rounded-md bg-indigo-600 text-white transition">All</button>
+        <button onclick="setFilter('vacant')" id="filter-vacant" class="filter-btn px-4 py-2 rounded-md text-slate-400 hover:text-slate-200 transition">Vacant</button>
+        <button onclick="setFilter('occupied')" id="filter-occupied" class="filter-btn px-4 py-2 rounded-md text-slate-400 hover:text-slate-200 transition">Occupied</button>
+        <button onclick="setFilter('reserved')" id="filter-reserved" class="filter-btn px-4 py-2 rounded-md text-slate-400 hover:text-slate-200 transition">Reserved</button>
+        <button onclick="setFilter('maintenance')" id="filter-maintenance" class="filter-btn px-4 py-2 rounded-md text-slate-400 hover:text-slate-200 transition">Maintenance</button>
+      </div>
+
+      <!-- Search Input -->
+      <div class="relative w-full md:w-72">
+        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+        <input type="text" id="search-input" oninput="renderCages()" placeholder="Search C-xxx, Owner, Balahibo, Tiil..." class="w-full bg-slate-900 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 border-transparent">
+      </div>
+
+    </div>
+
+    <!-- Grid Container for Cell Cages -->
+    <div id="cage-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <!-- Dynamic Cage Cards rendered here -->
+    </div>
+  </main>
+
+  <!-- Cage Interaction Modal -->
+  <div id="cage-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#0e1626] border border-slate-800/80 rounded-xl max-w-[420px] w-full p-6 shadow-2xl relative">
+      
+      <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white transition">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-3 mb-5">
+        <span id="modal-status-badge" class="w-3.5 h-3.5 rounded-full bg-emerald-500"></span>
+        <h3 id="modal-title" class="text-xl font-bold text-white tracking-wide">Cell Cage C-001</h3>
+      </div>
+
+      <div id="modal-content" class="space-y-4">
+        <!-- Content injected dynamically -->
+      </div>
+
+    </div>
+  </div>
+
+  <!-- History Audit Log Modal -->
+  <div id="history-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-4xl w-full p-6 shadow-2xl relative flex flex-col max-h-[85vh]">
+      
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div class="flex items-center space-x-2 text-indigo-400">
+          <i data-lucide="history" class="w-5 h-5"></i>
+          <h3 class="text-lg font-bold text-white">Gallera History Audit Log</h3>
+        </div>
+        <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="my-3 space-y-2.5">
+        <!-- Search + Action Buttons -->
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="relative flex-1 min-w-[200px]">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="text" id="history-search" oninput="renderHistoryLog()" placeholder="Search owner, balahibo, tiil, cage..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="printFilteredHistory()" class="px-3 py-1.5 bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-700/60 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition">
+              <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+              <span>Print Filtered Log</span>
+            </button>
+            <button onclick="clearHistoryLog()" class="px-3 py-1.5 bg-red-950/50 hover:bg-red-900/60 text-red-300 border border-red-800/50 rounded-lg text-xs font-medium transition">Clear History</button>
+          </div>
+        </div>
+
+        <!-- Date and Time Range Filters + Event Category Filter -->
+        <div class="p-2.5 bg-slate-950/60 rounded-lg border border-slate-800/80 flex flex-wrap items-center gap-3 text-xs text-slate-300">
+          <div class="flex items-center space-x-1.5">
+            <span class="text-slate-400 text-[11px] font-medium">From:</span>
+            <input type="datetime-local" id="history-start-datetime" onchange="renderHistoryLog()" class="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <span class="text-slate-400 text-[11px] font-medium">To:</span>
+            <input type="datetime-local" id="history-end-datetime" onchange="renderHistoryLog()" class="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <span class="text-slate-400 text-[11px] font-medium">Event:</span>
+            <select id="history-event-filter" onchange="renderHistoryLog()" class="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              <option value="all">All Events</option>
+              <option value="Check-In">Check-In</option>
+              <option value="Checkout/Release">Checkout/Release</option>
+              <option value="Reserved">Reserved</option>
+              <option value="Maintenance">Maintenance</option>
+              <option value="Cage Removed">Cage Removed</option>
+            </select>
+          </div>
+          <button onclick="resetHistoryFilters()" class="text-[11px] text-indigo-400 hover:text-indigo-300 underline ml-auto">Reset Filters</button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto pr-1">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider sticky top-0 bg-slate-900">
+              <th class="py-2 px-2">Time</th>
+              <th class="py-2 px-2">Cage</th>
+              <th class="py-2 px-2">Event</th>
+              <th class="py-2 px-2">Owner</th>
+              <th class="py-2 px-2">Balahibo</th>
+              <th class="py-2 px-2">Tiil</th>
+              <th class="py-2 px-2 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="history-table-body" class="text-xs divide-y divide-slate-800/60 text-slate-300">
+            <!-- Dynamic History Rows -->
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Export & Report Settings Modal -->
+  <div id="report-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl relative">
+      
+      <button onclick="closeReportModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2.5 mb-5 text-emerald-400">
+        <i data-lucide="file-text" class="w-5 h-5"></i>
+        <h3 class="text-lg font-bold text-white">Facility Reports & Exports</h3>
+      </div>
+
+      <div class="space-y-4">
+        <p class="text-xs text-slate-400">Export sales revenue records and history. Vacant cages are automatically excluded.</p>
+
+        <!-- Date Range Filter -->
+        <div class="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-2">
+          <label class="block text-xs font-semibold text-slate-300">Filter Export Date Range (Optional)</label>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <span class="text-[10px] text-slate-400">Start Date</span>
+              <input type="date" id="export-start-date" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+            </div>
+            <div>
+              <span class="text-[10px] text-slate-400">End Date</span>
+              <input type="date" id="export-end-date" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-2 pt-2">
+          <button onclick="exportExcelReport()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center space-x-2 transition">
+            <i data-lucide="sheet" class="w-4 h-4"></i>
+            <span>Export Excel Report (.xlsx)</span>
+          </button>
+
+          <button onclick="exportPDFReport()" class="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center space-x-2 transition">
+            <i data-lucide="file-down" class="w-4 h-4"></i>
+            <span>Export Summary PDF Report (.pdf)</span>
+          </button>
+
+          <button onclick="printFinalReport()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center justify-center space-x-2 transition">
+            <i data-lucide="printer" class="w-4 h-4"></i>
+            <span>Print Final Operations Report</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Admin PIN Protection Modal -->
+  <div id="pin-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-6 shadow-2xl relative text-center">
+
+      <button onclick="closePinModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="w-12 h-12 bg-indigo-950/80 border border-indigo-800/60 rounded-full flex items-center justify-center mx-auto mb-3 text-indigo-400">
+        <i data-lucide="lock" class="w-6 h-6"></i>
+      </div>
+
+      <h3 class="text-base font-bold text-white mb-1">Admin Authentication</h3>
+      <p id="pin-modal-subtitle" class="text-xs text-slate-400 mb-4">Enter Admin PIN to open Facility Settings.</p>
+
+      <form onsubmit="verifyPin(event)" class="space-y-3">
+        <div>
+          <input type="password" id="input-admin-pin" placeholder="Enter PIN" maxlength="10" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-center text-sm text-white tracking-widest focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          <p id="pin-error-msg" class="text-[11px] text-red-400 mt-1.5 hidden">Incorrect Admin PIN. Please try again.</p>
+        </div>
+
+        <button type="submit" id="pin-modal-submit-btn" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition">
+          Confirm PIN
+        </button>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- Facility Settings Modal -->
+  <div id="settings-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl relative">
+
+      <button onclick="closeSettingsModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2.5 mb-5 text-indigo-400">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+        <h3 class="text-lg font-bold text-white">Facility Settings</h3>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Default Fixed Rate (Philippine Peso ₱)</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">₱</span>
+            <input type="number" id="settings-default-fee" step="1" min="0" value="25.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Standard rate charged per cell cage check-in (Default: ₱25.00).</p>
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Default Hourly Rate (₱/hr)</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">₱</span>
+            <input type="number" id="settings-default-hourly-rate" step="1" min="0" value="25.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Standard hourly rate per cage (Default: ₱25.00/hr).</p>
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Default Duration Preset</label>
+          <select id="settings-default-preset" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <option value="open">Fixed Rate</option>
+            <option value="60">1 Hour (60m)</option>
+            <option value="120">2 Hours (120m)</option>
+            <option value="240">4 Hours (240m)</option>
+            <option value="480">8 Hours (480m)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Total Number of Cages</label>
+          <input type="number" id="settings-num-cages" min="1" max="500" step="1" value="18" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          <p class="text-[11px] text-slate-500 mt-1">Adjust total cell cage units in the facility.</p>
+          <p id="num-cages-error-msg" class="text-[11px] text-red-400 mt-1.5 hidden font-semibold">Error: Cannot set number of cages below current active count (<span id="active-cages-count-lbl">0</span> active occupied/reserved cages).</p>
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Add Custom Cage Unit (Pre-text: C-)</label>
+          <div class="flex space-x-2">
+            <div class="relative flex-1">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs font-bold">C-</span>
+              <input type="text" id="settings-add-cage-id" placeholder="019" maxlength="8" class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-3 py-2 text-xs text-white uppercase font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            </div>
+            <button type="button" onclick="addSingleCageFromSettings()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition">
+              Add Cage
+            </button>
+          </div>
+          <p id="add-cage-error-msg" class="text-[11px] text-red-400 mt-1.5 hidden font-semibold"></p>
+          <p id="add-cage-success-msg" class="text-[11px] text-emerald-400 mt-1.5 hidden font-semibold"></p>
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Remove Specific Cage Unit</label>
+          <div class="flex space-x-2">
+            <select id="settings-remove-cage-id" class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-red-500">
+              <option value="">Select Cage to Remove</option>
+            </select>
+            <button type="button" onclick="removeSingleCageFromSettings()" class="px-3 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-semibold transition">
+              Remove Cage
+            </button>
+          </div>
+          <div id="remove-cage-pin-container" class="mt-2 hidden space-y-2 p-2.5 bg-slate-950/80 border border-red-900/50 rounded-lg">
+            <p class="text-[11px] text-amber-400 font-medium">Verify Admin PIN to confirm removal of <span id="remove-target-cage-lbl" class="font-bold text-white"></span>:</p>
+            <div class="flex space-x-2">
+              <input type="password" id="remove-cage-pin-input" placeholder="Enter Admin PIN" maxlength="10" class="flex-1 bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs text-white">
+              <button type="button" onclick="confirmRemoveCageWithPin()" class="px-3 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-bold">
+                Confirm
+              </button>
+            </div>
+          </div>
+          <p id="remove-cage-error-msg" class="text-[11px] text-red-400 mt-1.5 hidden font-semibold"></p>
+          <p id="remove-cage-success-msg" class="text-[11px] text-emerald-400 mt-1.5 hidden font-semibold"></p>
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Admin Security PIN</label>
+          <input type="password" id="settings-admin-pin" value="123456" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          <p class="text-[11px] text-slate-500 mt-1">PIN required to open Settings (Default: 123456).</p>
+        </div>
+
+        <div class="pt-2">
+          <button onclick="saveSettingsFromModal()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition">
+            Save Settings
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Hidden Printable Ticket Output Container -->
+  <div id="print-area" class="hidden"></div>
+
+  <!-- Javascript Core Engine -->
+  <script>
+    function safeJSONParse(key, fallback) {
+      try {
+        const item = localStorage.getItem(key);
+        if (!item) return fallback;
+        const parsed = JSON.parse(item);
+        return (parsed !== null && parsed !== undefined) ? parsed : fallback;
+      } catch (e) {
+        console.warn('LocalStorage parse error for key:', key, e);
+        return fallback;
+      }
+    }
+
+    function getDefaultCages() {
+      return Array.from({ length: 18 }, (_, i) => {
+        const idStr = `C-${String(i + 1).padStart(3, '0')}`;
+        if (i === 1) {
+          return { id: idStr, status: 'occupied', occupant: 'Viktor', contact: '0917-123-4567', balahibo: 'A+ TK / Talisain', tiil: 'Y1 - Y1 / Yellow', durationMinutes: 'open', startTime: Date.now() - (35 * 60 * 1000), pricingType: 'fixed', fee: 25, isPaid: true };
+        }
+        if (i === 2) {
+          return { id: idStr, status: 'reserved', occupant: 'Maria Santos', contact: '0918-987-6543', balahibo: 'Talisain', tiil: 'Yellow', resvTime: '15:30' };
+        }
+        if (i === 6) {
+          return { id: idStr, status: 'maintenance', note: 'Airflow filter cleaning' };
+        }
+        return { id: idStr, status: 'vacant' };
+      });
+    }
+
+    // Initial Dataset with Fallback
+    const storedCages = safeJSONParse('cell_cages', null);
+    let cages = (Array.isArray(storedCages) && storedCages.length > 0) ? storedCages : getDefaultCages();
+    let historyLog = safeJSONParse('cell_history', []);
+
+    let appSettings = safeJSONParse('cell_settings', {
+      defaultFee: 25.00,
+      defaultHourlyRate: 25.00,
+      defaultPreset: 'open',
+      adminPin: '123456'
+    });
+
+    let currentFilter = 'all';
+    let selectedCageId = null;
+
+    function saveSettings() {
+      localStorage.setItem('cell_settings', JSON.stringify(appSettings));
+    }
+
+    function formatFee(amount) {
+      const fee = parseFloat(amount != null ? amount : appSettings.defaultFee);
+      const val = isNaN(fee) ? appSettings.defaultFee : fee;
+      return `PHP ${val.toFixed(2)}`;
+    }
+
+    function formatFeeShort(amount) {
+      const fee = parseFloat(amount != null ? amount : appSettings.defaultFee);
+      const val = isNaN(fee) ? appSettings.defaultFee : fee;
+      return `₱${val.toFixed(2)}`;
+    }
+
+    let pendingPinAction = 'settings'; // 'settings' or 'clear_history'
+
+    function openPinModal(action = 'settings', subtitle = 'Enter Admin PIN to continue.') {
+      pendingPinAction = action;
+      const subtitleEl = document.getElementById('pin-modal-subtitle');
+      if (subtitleEl) subtitleEl.innerText = subtitle;
+
+      document.getElementById('input-admin-pin').value = '';
+      document.getElementById('pin-error-msg').classList.add('hidden');
+      document.getElementById('pin-modal').classList.remove('hidden');
+      setTimeout(() => {
+        const pInput = document.getElementById('input-admin-pin');
+        if (pInput) pInput.focus();
+      }, 100);
+      lucide.createIcons();
+    }
+
+    function openSettingsModal() {
+      openPinModal('settings', 'Enter Admin PIN to open Facility Settings.');
+    }
+
+    function closePinModal() {
+      document.getElementById('pin-modal').classList.add('hidden');
+    }
+
+    function verifyPin(e) {
+      if (e) e.preventDefault();
+      const enteredPin = document.getElementById('input-admin-pin').value;
+      const currentPin = appSettings.adminPin || '123456';
+
+      if (enteredPin === currentPin) {
+        closePinModal();
+        if (pendingPinAction === 'settings') {
+          showFacilitySettings();
+        } else if (pendingPinAction === 'clear_history') {
+          historyLog = [];
+          saveData();
+          renderHistoryLog();
+        }
+      } else {
+        document.getElementById('pin-error-msg').classList.remove('hidden');
+      }
+    }
+
+    function showFacilitySettings() {
+      document.getElementById('settings-default-fee').value = Number(appSettings.defaultFee || 25).toFixed(2);
+      document.getElementById('settings-default-hourly-rate').value = Number(appSettings.defaultHourlyRate || 25).toFixed(2);
+      document.getElementById('settings-default-preset').value = appSettings.defaultPreset;
+      if (document.getElementById('settings-num-cages')) {
+        document.getElementById('settings-num-cages').value = cages.length;
+      }
+      if (document.getElementById('num-cages-error-msg')) {
+        document.getElementById('num-cages-error-msg').classList.add('hidden');
+      }
+      if (document.getElementById('settings-add-cage-id')) {
+        document.getElementById('settings-add-cage-id').value = '';
+      }
+      if (document.getElementById('add-cage-error-msg')) {
+        document.getElementById('add-cage-error-msg').classList.add('hidden');
+      }
+      if (document.getElementById('add-cage-success-msg')) {
+        document.getElementById('add-cage-success-msg').classList.add('hidden');
+      }
+      if (document.getElementById('remove-cage-pin-container')) {
+        document.getElementById('remove-cage-pin-container').classList.add('hidden');
+      }
+      if (document.getElementById('remove-cage-error-msg')) {
+        document.getElementById('remove-cage-error-msg').classList.add('hidden');
+      }
+      if (document.getElementById('remove-cage-success-msg')) {
+        document.getElementById('remove-cage-success-msg').classList.add('hidden');
+      }
+      if (document.getElementById('settings-admin-pin')) {
+        document.getElementById('settings-admin-pin').value = appSettings.adminPin || '123456';
+      }
+      populateRemoveCageOptions();
+      document.getElementById('settings-modal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function addSingleCageFromSettings() {
+      const inputEl = document.getElementById('settings-add-cage-id');
+      const errorMsg = document.getElementById('add-cage-error-msg');
+      const successMsg = document.getElementById('add-cage-success-msg');
+      if (!inputEl) return;
+
+      let val = inputEl.value.trim().toUpperCase();
+      if (!val) {
+        if (errorMsg) {
+          errorMsg.innerText = "Error: Please enter a cage ID number (e.g. 019).";
+          errorMsg.classList.remove('hidden');
+        }
+        if (successMsg) successMsg.classList.add('hidden');
+        return;
+      }
+
+      // Format ID with C- prefix
+      let fullId = val.startsWith('C-') ? val : `C-${val.padStart(3, '0')}`;
+
+      // Prompt error if Cage ID already exists!
+      const exists = cages.some(c => c.id.toUpperCase() === fullId.toUpperCase());
+      if (exists) {
+        if (errorMsg) {
+          errorMsg.innerText = `Error: Cage ID '${fullId}' already exists!`;
+          errorMsg.classList.remove('hidden');
+        }
+        if (successMsg) successMsg.classList.add('hidden');
+        return;
+      }
+
+      // Add unique new cage
+      cages.push({ id: fullId, status: 'vacant' });
+      saveData();
+      addHistoryEntry(fullId, 'Cage Added', 'Admin', '-', '-', `Added custom cage ${fullId} via Settings`);
+
+      if (errorMsg) errorMsg.classList.add('hidden');
+      if (successMsg) {
+        successMsg.innerText = `Success: Cage '${fullId}' added.`;
+        successMsg.classList.remove('hidden');
+      }
+
+      inputEl.value = '';
+      if (document.getElementById('settings-num-cages')) {
+        document.getElementById('settings-num-cages').value = cages.length;
+      }
+      populateRemoveCageOptions();
+      renderCages();
+    }
+
+    let cageToRemoveId = null;
+
+    function populateRemoveCageOptions() {
+      const selectEl = document.getElementById('settings-remove-cage-id');
+      if (!selectEl) return;
+      selectEl.innerHTML = '<option value="">Select Cage to Remove</option>';
+      cages.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        const statusLabel = c.status.toUpperCase();
+        opt.textContent = `${c.id} (${statusLabel})`;
+        if (c.status !== 'vacant') {
+          opt.disabled = true;
+          opt.textContent += ' - Active';
+        }
+        selectEl.appendChild(opt);
+      });
+    }
+
+    function removeSingleCageFromSettings() {
+      const selectEl = document.getElementById('settings-remove-cage-id');
+      const errorMsg = document.getElementById('remove-cage-error-msg');
+      const successMsg = document.getElementById('remove-cage-success-msg');
+      const pinContainer = document.getElementById('remove-cage-pin-container');
+      const pinInput = document.getElementById('remove-cage-pin-input');
+
+      if (errorMsg) errorMsg.classList.add('hidden');
+      if (successMsg) successMsg.classList.add('hidden');
+
+      if (!selectEl || !selectEl.value) {
+        if (errorMsg) {
+          errorMsg.innerText = "Error: Please select a cage to remove.";
+          errorMsg.classList.remove('hidden');
+        }
+        return;
+      }
+
+      const cageId = selectEl.value;
+      const cage = cages.find(c => c.id === cageId);
+      if (!cage) return;
+
+      if (cage.status !== 'vacant') {
+        if (errorMsg) {
+          errorMsg.innerText = `Error: Cannot remove ${cageId} because it is currently ${cage.status.toUpperCase()}. Release or check out the cage first.`;
+          errorMsg.classList.remove('hidden');
+        }
+        return;
+      }
+
+      cageToRemoveId = cageId;
+      const lbl = document.getElementById('remove-target-cage-lbl');
+      if (lbl) lbl.innerText = cageId;
+      if (pinInput) pinInput.value = '';
+      if (pinContainer) pinContainer.classList.remove('hidden');
+      setTimeout(() => { if (pinInput) pinInput.focus(); }, 100);
+    }
+
+    function confirmRemoveCageWithPin() {
+      const pinInput = document.getElementById('remove-cage-pin-input');
+      const errorMsg = document.getElementById('remove-cage-error-msg');
+      const successMsg = document.getElementById('remove-cage-success-msg');
+      const pinContainer = document.getElementById('remove-cage-pin-container');
+
+      const enteredPin = pinInput ? pinInput.value : '';
+      const currentPin = appSettings.adminPin || '123456';
+
+      if (enteredPin !== currentPin) {
+        if (errorMsg) {
+          errorMsg.innerText = "Error: Incorrect Admin PIN. Cage removal authorization failed.";
+          errorMsg.classList.remove('hidden');
+        }
+        return;
+      }
+
+      if (!cageToRemoveId) return;
+
+      const idx = cages.findIndex(c => c.id === cageToRemoveId);
+      if (idx !== -1) {
+        const removedId = cageToRemoveId;
+        cages.splice(idx, 1);
+        saveData();
+        addHistoryEntry(removedId, 'Cage Removed', 'Admin', '-', '-', `Removed cage ${removedId} via Settings`);
+
+        if (errorMsg) errorMsg.classList.add('hidden');
+        if (pinContainer) pinContainer.classList.add('hidden');
+        if (successMsg) {
+          successMsg.innerText = `Success: Cage '${removedId}' has been removed.`;
+          successMsg.classList.remove('hidden');
+        }
+
+        if (document.getElementById('settings-num-cages')) {
+          document.getElementById('settings-num-cages').value = cages.length;
+        }
+        populateRemoveCageOptions();
+        renderCages();
+        cageToRemoveId = null;
+      }
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settings-modal').classList.add('hidden');
+    }
+
+    function saveSettingsFromModal() {
+      const newFee = parseFloat(document.getElementById('settings-default-fee').value);
+      const newHourly = parseFloat(document.getElementById('settings-default-hourly-rate').value);
+      const newPreset = document.getElementById('settings-default-preset').value;
+      const newPin = document.getElementById('settings-admin-pin').value;
+      const newNumCages = parseInt(document.getElementById('settings-num-cages').value);
+
+      const activeCagesCount = cages.filter(c => c.status !== 'vacant').length;
+      const errorMsg = document.getElementById('num-cages-error-msg');
+
+      if (!isNaN(newNumCages) && newNumCages < activeCagesCount) {
+        if (errorMsg) {
+          document.getElementById('active-cages-count-lbl').innerText = activeCagesCount;
+          errorMsg.classList.remove('hidden');
+        }
+        return; // Block save if below active occupied count
+      } else {
+        if (errorMsg) errorMsg.classList.add('hidden');
+      }
+
+      // Handle cage array resizing
+      if (!isNaN(newNumCages) && newNumCages > 0 && newNumCages !== cages.length) {
+        if (newNumCages > cages.length) {
+          for (let i = cages.length + 1; i <= newNumCages; i++) {
+            const idStr = `C-${String(i).padStart(3, '0')}`;
+            cages.push({ id: idStr, status: 'vacant' });
+          }
+        } else if (newNumCages < cages.length) {
+          while (cages.length > newNumCages) {
+            let lastVacantIdx = -1;
+            for (let i = cages.length - 1; i >= 0; i--) {
+              if (cages[i].status === 'vacant') {
+                lastVacantIdx = i;
+                break;
+              }
+            }
+            if (lastVacantIdx !== -1) {
+              cages.splice(lastVacantIdx, 1);
+            } else {
+              break;
+            }
+          }
+        }
+        saveData();
+      }
+
+      if (!isNaN(newFee) && newFee >= 0) appSettings.defaultFee = newFee;
+      if (!isNaN(newHourly) && newHourly >= 0) appSettings.defaultHourlyRate = newHourly;
+      if (newPreset) appSettings.defaultPreset = newPreset;
+      if (newPin && newPin.trim() !== '') appSettings.adminPin = newPin.trim();
+
+      saveSettings();
+      populateRemoveCageOptions();
+      closeSettingsModal();
+      renderCages();
+    }
+
+    function handlePresetChange(val) {
+      const durInput = document.getElementById('input-duration');
+      if (!durInput) return;
+      if (val === 'open') {
+        durInput.value = 0;
+        durInput.disabled = true;
+        durInput.className = 'w-full bg-[#050914] border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-500';
+      } else {
+        durInput.value = val;
+        durInput.disabled = false;
+        durInput.className = 'w-full bg-[#050914] border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500';
+      }
+      const modeSelect = document.getElementById('rate-mode-select');
+      if (modeSelect && modeSelect.value === 'hourly') {
+        recalculateTotalAmount();
+      }
+    }
+
+    function handleRateModeChange(mode) {
+      const hourlyBox = document.getElementById('hourly-rate-box');
+      const feeInput = document.getElementById('input-fee');
+      if (!feeInput) return;
+
+      if (mode === 'hourly') {
+        if (hourlyBox) hourlyBox.classList.remove('hidden');
+        recalculateTotalAmount();
+      } else {
+        if (hourlyBox) hourlyBox.classList.add('hidden');
+        feeInput.value = Number(appSettings.defaultFee).toFixed(2);
+      }
+    }
+
+    function recalculateTotalAmount() {
+      const modeSelect = document.getElementById('rate-mode-select');
+      if (!modeSelect || modeSelect.value !== 'hourly') return;
+
+      const hourlyRateInput = document.getElementById('input-hourly-rate');
+      const feeInput = document.getElementById('input-fee');
+      const durInput = document.getElementById('input-duration');
+
+      const hourlyRate = parseFloat(hourlyRateInput ? hourlyRateInput.value : (appSettings.defaultHourlyRate || 25)) || 25;
+      const durMins = parseInt(durInput ? durInput.value : 0) || 60;
+
+      const hours = durMins > 0 ? (durMins / 60) : 1;
+      const total = hourlyRate * hours;
+
+      if (feeInput) {
+        feeInput.value = total.toFixed(2);
+      }
+    }
+
+    function saveData() {
+      localStorage.setItem('cell_cages', JSON.stringify(cages));
+      localStorage.setItem('cell_history', JSON.stringify(historyLog));
+    }
+
+    function addHistoryEntry(
+      cageId,
+      event,
+      occupant = 'N/A',
+      balahibo = 'N/A',
+      tiil = 'N/A',
+      note = '',
+      feeText = 'PHP 25.00',
+      isPaid = true,
+      contact = '-',
+      checkInTime = null,
+      checkoutTime = null,
+      salesFee = null,
+      paidAmount = null
+    ) {
+      const nowStr = new Date().toLocaleString();
+      const entry = {
+        id: Date.now(),
+        timestamp: nowStr,
+        cageId,
+        event,
+        occupant,
+        contact,
+        balahibo,
+        tiil,
+        note,
+        feeText,
+        isPaid,
+        checkInTime: checkInTime || (event === 'Cage Removed' ? 'Cage Removed' : nowStr),
+        checkoutTime: checkoutTime || nowStr,
+        salesFee: salesFee != null ? salesFee : (event === 'Checkout/Release' ? (parseFloat(String(feeText).replace(/[^0-9.]/g, '')) || '-') : '-'),
+        paidAmount: paidAmount != null ? paidAmount : (event === 'Checkout/Release' ? (parseFloat(String(feeText).replace(/[^0-9.]/g, '')) || '-') : '-')
+      };
+      historyLog.unshift(entry);
+      saveData();
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-indigo-600', 'text-white');
+        btn.classList.add('text-slate-400');
+      });
+      const activeBtn = document.getElementById(`filter-${filter}`);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-indigo-600', 'text-white');
+        activeBtn.classList.remove('text-slate-400');
+      }
+      renderCages();
+    }
+
+    function renderCages() {
+      const grid = document.getElementById('cage-grid');
+      if (!grid) return;
+
+      // Auto-recovery: If cages is empty or corrupt, restore default 18 cages
+      if (!cages || !Array.isArray(cages) || cages.length === 0) {
+        cages = Array.from({ length: 18 }, (_, i) => ({
+          id: `C-${String(i + 1).padStart(3, '0')}`,
+          status: 'vacant'
+        }));
+        saveData();
+      }
+
+      const searchInput = document.getElementById('search-input');
+      const searchQuery = searchInput ? searchInput.value.toLowerCase() : '';
+      grid.innerHTML = '';
+
+      let vacantCount = 0;
+      let occupiedCount = 0;
+      let reservedCount = 0;
+      let maintenanceCount = 0;
+
+      cages.forEach(cage => {
+        if (!cage || !cage.status) return;
+        if (cage.status === 'vacant') vacantCount++;
+        if (cage.status === 'occupied') occupiedCount++;
+        if (cage.status === 'reserved') reservedCount++;
+        if (cage.status === 'maintenance') maintenanceCount++;
+
+        const matchesFilter = (currentFilter === 'all') || (cage.status === currentFilter);
+        const matchesSearch = (cage.id && cage.id.toLowerCase().includes(searchQuery)) ||
+                              (cage.occupant && cage.occupant.toLowerCase().includes(searchQuery)) ||
+                              (cage.contact && cage.contact.toLowerCase().includes(searchQuery)) ||
+                              (cage.balahibo && cage.balahibo.toLowerCase().includes(searchQuery)) ||
+                              (cage.tiil && cage.tiil.toLowerCase().includes(searchQuery));
+
+        if (matchesFilter && matchesSearch) {
+          grid.appendChild(createCageCard(cage));
+        }
+      });
+
+      if (document.getElementById('stat-total')) document.getElementById('stat-total').innerText = cages.length;
+      if (document.getElementById('stat-vacant')) document.getElementById('stat-vacant').innerText = vacantCount;
+      if (document.getElementById('stat-occupied')) document.getElementById('stat-occupied').innerText = occupiedCount;
+      if (document.getElementById('stat-reserved')) document.getElementById('stat-reserved').innerText = reservedCount;
+      if (document.getElementById('stat-maintenance')) document.getElementById('stat-maintenance').innerText = maintenanceCount;
+
+      try {
+        if (window.lucide && typeof lucide.createIcons === 'function') {
+          lucide.createIcons();
+        }
+      } catch (e) {
+        console.warn('Lucide icon render warning:', e);
+      }
+    }
+
+    function createCageCard(cage) {
+      const card = document.createElement('div');
+      card.onclick = () => openCageModal(cage.id);
+      
+      let borderClass = 'status-vacant';
+      let dotColor = 'bg-emerald-500';
+      let statusLabel = 'VACANT';
+      let statusTextColor = 'text-emerald-400';
+      let bodyDetails = `<div class="text-xs text-slate-500 mt-2">Available for check-in</div>`;
+
+      if (cage.status === 'occupied') {
+        borderClass = 'status-occupied';
+        dotColor = 'bg-red-500 animate-pulse';
+        statusLabel = 'OCCUPIED';
+        statusTextColor = 'text-red-400';
+
+        const paidBadge = cage.isPaid 
+          ? `<span class="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 rounded">PAID</span>`
+          : `<span class="px-1.5 py-0.5 text-[9px] font-bold bg-amber-950 text-amber-400 border border-amber-800 rounded animate-pulse">UNPAID</span>`;
+
+        bodyDetails = `
+          <div class="mt-2 text-left w-full space-y-1">
+            <p class="text-xs font-medium text-slate-300 truncate"><span class="text-slate-500">Owner:</span> ${cage.occupant || 'N/A'}</p>
+            <p class="text-[11px] text-slate-400 truncate"><span class="text-slate-500">Contact:</span> ${cage.contact || '-'}</p>
+            <p class="text-[11px] text-slate-400 truncate"><span class="text-slate-500">Balahibo:</span> ${cage.balahibo || '-'}</p>
+            <p class="text-[11px] text-slate-400 truncate"><span class="text-slate-500">Tiil:</span> ${cage.tiil || '-'}</p>
+            <div class="flex items-center justify-between pt-1">
+              ${paidBadge}
+              <span class="text-[10px] text-slate-400 font-mono">${formatFee(cage.fee)}</span>
+            </div>
+          </div>
+        `;
+      } else if (cage.status === 'reserved') {
+        borderClass = 'status-reserved';
+        dotColor = 'bg-yellow-500 animate-pulse';
+        statusLabel = 'RESERVED';
+        statusTextColor = 'text-yellow-400';
+
+        bodyDetails = `
+          <div class="mt-2 text-left w-full space-y-1">
+            <p class="text-xs font-medium text-slate-300 truncate"><span class="text-slate-500">For:</span> ${cage.occupant || 'N/A'}</p>
+            <p class="text-[11px] text-slate-400 truncate"><span class="text-slate-500">Contact:</span> ${cage.contact || '-'}</p>
+            <p class="text-xs font-mono text-yellow-300"><span class="text-slate-500 font-sans">Time:</span> ${cage.resvTime || 'N/A'}</p>
+          </div>
+        `;
+      } else if (cage.status === 'maintenance') {
+        borderClass = 'status-maintenance';
+        dotColor = 'bg-slate-400';
+        statusLabel = 'MAINTENANCE';
+        statusTextColor = 'text-slate-400';
+
+        bodyDetails = `
+          <div class="mt-2 text-left w-full">
+            <p class="text-xs text-slate-400 italic truncate">${cage.note || 'Under Servicing'}</p>
+          </div>
+        `;
+      }
+
+      card.className = `bg-slate-900 border-2 rounded-xl p-4 flex flex-col items-center justify-between cursor-pointer transition transform active:scale-95 ${borderClass}`;
+      card.innerHTML = `
+        <div class="flex items-center justify-between w-full mb-1">
+          <div class="flex items-center space-x-1.5">
+            <span class="w-2.5 h-2.5 rounded-full ${dotColor}"></span>
+            <span class="text-[10px] font-bold tracking-wider ${statusTextColor}">${statusLabel}</span>
+          </div>
+        </div>
+        <div class="my-1">
+          <span class="text-2xl font-extrabold tracking-tight text-white font-mono">${cage.id}</span>
+        </div>
+        ${bodyDetails}
+      `;
+
+      return card;
+    }
+
+    function openCageModal(cageId) {
+      selectedCageId = cageId;
+      const cage = cages.find(c => c.id === cageId);
+      if (!cage) return;
+
+      const modal = document.getElementById('cage-modal');
+      const modalTitle = document.getElementById('modal-title');
+      const badge = document.getElementById('modal-status-badge');
+      const content = document.getElementById('modal-content');
+
+      modalTitle.innerText = `Cell Cage ${cage.id}`;
+
+      if (cage.status === 'vacant') {
+        badge.className = 'w-3.5 h-3.5 rounded-full bg-emerald-500';
+        content.innerHTML = `
+          <div class="space-y-3.5 text-xs">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block font-medium text-slate-300 mb-1">Owner Name (OWNER)</label>
+                <input type="text" id="input-occupant" placeholder="e.g. Viktor" class="w-full bg-[#050914] border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block font-medium text-slate-300 mb-1">Contact No. (CONTACT)</label>
+                <input type="text" id="input-contact" placeholder="e.g. 09171234567" class="w-full bg-[#050914] border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block font-medium text-slate-300 mb-1">BALAHIBO</label>
+                <input type="text" id="input-balahibo" placeholder="e.g. A+ TK / Talisain" class="w-full bg-[#050914] border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+              </div>
+              <div>
+                <label class="block font-medium text-slate-300 mb-1">TIIL</label>
+                <input type="text" id="input-tiil" placeholder="e.g. Y1 - Y1 / Yellow" class="w-full bg-[#050914] border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block font-medium text-slate-300 mb-1">Duration Preset</label>
+                <select id="preset-select" onchange="handlePresetChange(this.value)" class="w-full bg-[#050914] border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                  <option value="open" ${appSettings.defaultPreset === 'open' ? 'selected' : ''}>Fixed Rate</option>
+                  <option value="60" ${appSettings.defaultPreset === '60' ? 'selected' : ''}>1 Hour (60m)</option>
+                  <option value="120" ${appSettings.defaultPreset === '120' ? 'selected' : ''}>2 Hours (120m)</option>
+                  <option value="240" ${appSettings.defaultPreset === '240' ? 'selected' : ''}>4 Hours (240m)</option>
+                  <option value="480" ${appSettings.defaultPreset === '480' ? 'selected' : ''}>8 Hours (480m)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block font-medium text-slate-300 mb-1">Duration (Minutes)</label>
+                <input type="number" id="input-duration" oninput="recalculateTotalAmount()" value="${appSettings.defaultPreset === 'open' ? 0 : appSettings.defaultPreset}" ${appSettings.defaultPreset === 'open' ? 'disabled' : ''} class="w-full bg-[#050914] border border-slate-800/80 rounded-lg px-3 py-2 text-sm ${appSettings.defaultPreset === 'open' ? 'text-slate-500' : 'text-white'}">
+              </div>
+            </div>
+
+            <div class="p-3 bg-[#050914] rounded-lg border border-slate-800/80 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-semibold text-slate-300">Rate Mode</span>
+                <select id="rate-mode-select" onchange="handleRateModeChange(this.value)" class="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white">
+                  <option value="fixed" selected>Fixed Rate (₱${Number(appSettings.defaultFee).toFixed(2)} Default)</option>
+                  <option value="hourly">Hourly Rate</option>
+                </select>
+              </div>
+              <div id="hourly-rate-box" class="hidden flex items-center justify-between pt-1 border-t border-slate-800/40">
+                <span class="text-slate-400">Hourly Rate (₱/hr)</span>
+                <input type="number" id="input-hourly-rate" oninput="recalculateTotalAmount()" value="${Number(appSettings.defaultHourlyRate || 25).toFixed(2)}" step="0.50" min="0" class="w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white text-right focus:outline-none focus:border-indigo-500">
+              </div>
+              <div class="flex items-center justify-between pt-1 border-t border-slate-800/40">
+                <span class="text-slate-400">Total Amount (₱ PHP)</span>
+                <input type="number" id="input-fee" value="${Number(appSettings.defaultFee).toFixed(2)}" step="0.50" min="0" class="w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white text-right focus:outline-none focus:border-indigo-500">
+              </div>
+              <div class="flex items-center justify-between pt-2 border-t border-slate-800/60">
+                <span class="text-slate-400">Payment Status</span>
+                <label class="inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="input-is-paid" checked class="sr-only peer">
+                  <div class="relative w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                  <span id="paid-status-text" class="ms-2 font-bold text-emerald-400">PAID</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <button onclick="checkInOccupant('${cage.id}')" class="w-full py-2.5 bg-[#059669] hover:bg-[#10b981] text-white rounded-lg text-xs font-bold transition">Confirm Check-In</button>
+              <button onclick="reserveCage('${cage.id}')" class="w-full py-2.5 bg-[#d97706] hover:bg-[#f59e0b] text-white rounded-lg text-xs font-bold transition">Mark Reserved</button>
+            </div>
+            <button onclick="setMaintenance('${cage.id}')" class="w-full py-2 bg-[#1e293b] hover:bg-[#334155] text-slate-300 rounded-lg text-xs font-medium transition border border-slate-700/60">Set Maintenance</button>
+          </div>
+        `;
+
+        setTimeout(() => {
+          const chk = document.getElementById('input-is-paid');
+          if (chk) {
+            chk.onchange = () => {
+              document.getElementById('paid-status-text').innerText = chk.checked ? 'PAID' : 'UNPAID';
+              document.getElementById('paid-status-text').className = chk.checked ? 'ms-2 font-bold text-emerald-400' : 'ms-2 font-bold text-amber-400';
+            };
+          }
+        }, 100);
+
+      } else if (cage.status === 'occupied') {
+        badge.className = 'w-3.5 h-3.5 rounded-full bg-red-500';
+        const vacantOptions = cages.filter(c => c.status === 'vacant').map(c => `<option value="${c.id}">${c.id}</option>`).join('');
+
+        content.innerHTML = `
+          <div class="space-y-3">
+            <div class="p-3 bg-[#050914] rounded-lg border border-slate-800 space-y-2">
+              <div class="flex justify-between items-center">
+                <div>
+                  <p class="text-xs text-slate-400">Owner</p>
+                  <p class="text-sm font-bold text-white">${cage.occupant || 'N/A'}</p>
+                </div>
+                <button onclick="printTicketForCage('${cage.id}')" class="px-2.5 py-1.5 bg-indigo-950 text-indigo-300 border border-indigo-800 hover:bg-indigo-900 rounded text-xs font-medium flex items-center space-x-1">
+                  <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                  <span>Print Ticket</span>
+                </button>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-xs pt-1 text-slate-300">
+                <div><span class="text-slate-500">CONTACT:</span> ${cage.contact || '-'}</div>
+                <div><span class="text-slate-500">BALAHIBO:</span> ${cage.balahibo || '-'}</div>
+                <div class="col-span-2"><span class="text-slate-500">TIIL:</span> ${cage.tiil || '-'}</div>
+              </div>
+
+              <div class="flex items-center justify-between border-t border-slate-800/80 pt-2">
+                <span class="text-xs font-mono text-white">${formatFee(cage.fee)} per cage</span>
+                <button onclick="toggleOccupiedPayment('${cage.id}')" class="px-2.5 py-1 rounded text-xs font-bold transition ${cage.isPaid ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-amber-950 text-amber-400 border border-amber-800 animate-pulse'}">
+                  ${cage.isPaid ? 'PAID' : 'UNPAID'}
+                </button>
+              </div>
+            </div>
+
+            <!-- Transfer Tool -->
+            <div class="p-3 bg-[#050914]/60 rounded-lg border border-slate-800/80 space-y-2">
+              <label class="block text-xs font-semibold text-slate-300">Transfer to Another Cage</label>
+              ${vacantOptions ? `
+                <div class="flex space-x-2">
+                  <select id="transfer-target-id" class="flex-1 bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-white">
+                    ${vacantOptions}
+                  </select>
+                  <button onclick="transferCage('${cage.id}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-semibold">Transfer</button>
+                </div>
+              ` : `<p class="text-xs text-slate-500 italic">No vacant cages available.</p>`}
+            </div>
+
+            <button onclick="checkOutCage('${cage.id}')" class="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold transition">Checkout & Release Cage</button>
+          </div>
+        `;
+      } else if (cage.status === 'reserved') {
+        badge.className = 'w-3.5 h-3.5 rounded-full bg-yellow-500';
+        content.innerHTML = `
+          <div class="space-y-3">
+            <div class="p-3 bg-[#050914] rounded-lg border border-slate-800 space-y-2">
+              <div class="flex justify-between items-center">
+                <div>
+                  <p class="text-xs text-slate-400">Reserved For</p>
+                  <p class="text-sm font-bold text-yellow-400">${cage.occupant || 'N/A'}</p>
+                </div>
+                <span class="text-xs font-mono text-yellow-300/80">${cage.resvTime || ''}</span>
+              </div>
+              <p class="text-xs text-slate-300"><span class="text-slate-500">Contact:</span> ${cage.contact || '-'}</p>
+
+              <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-xs">
+                <div>
+                  <label class="block font-medium text-slate-400 mb-1">BALAHIBO</label>
+                  <input type="text" id="edit-resv-balahibo" value="${cage.balahibo && cage.balahibo !== '-' ? cage.balahibo : ''}" placeholder="e.g. Talisain" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                  <label class="block font-medium text-slate-400 mb-1">TIIL</label>
+                  <input type="text" id="edit-resv-tiil" value="${cage.tiil && cage.tiil !== '-' ? cage.tiil : ''}" placeholder="e.g. Yellow" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="saveReservationDetails('${cage.id}')" class="py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition">Save Info</button>
+              <button onclick="claimReservation('${cage.id}')" class="py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition">Claim & Check-In</button>
+            </div>
+            <button onclick="checkOutCage('${cage.id}')" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-slate-400 rounded-lg text-xs transition border border-slate-800">Cancel Reservation</button>
+          </div>
+        `;
+      } else if (cage.status === 'maintenance') {
+        badge.className = 'w-3.5 h-3.5 rounded-full bg-slate-400';
+        content.innerHTML = `
+          <div class="space-y-3">
+            <div class="p-3 bg-[#050914] rounded-lg border border-slate-800">
+              <p class="text-xs text-slate-400">Maintenance Note</p>
+              <p class="text-sm text-slate-200">${cage.note || 'No notes added'}</p>
+            </div>
+            <button onclick="checkOutCage('${cage.id}')" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition">Complete Maintenance (Set Vacant)</button>
+          </div>
+        `;
+      }
+
+      modal.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeModal() {
+      document.getElementById('cage-modal').classList.add('hidden');
+    }
+
+    function checkInOccupant(cageId) {
+      const occupant = document.getElementById('input-occupant').value || 'Guest';
+      const contactEl = document.getElementById('input-contact');
+      const contact = contactEl ? (contactEl.value || '-') : '-';
+      const balahibo = document.getElementById('input-balahibo').value || '-';
+      const tiil = document.getElementById('input-tiil').value || '-';
+      const presetVal = document.getElementById('preset-select').value;
+      const durInput = document.getElementById('input-duration').value;
+      const modeSelect = document.getElementById('rate-mode-select');
+      const modeVal = modeSelect ? modeSelect.value : 'fixed';
+      const hourlyRateInput = document.getElementById('input-hourly-rate');
+      const hourlyVal = parseFloat(hourlyRateInput ? hourlyRateInput.value : (appSettings.defaultHourlyRate || 25)) || 25;
+      const feeInput = parseFloat(document.getElementById('input-fee').value);
+      const feeVal = (!isNaN(feeInput) && feeInput >= 0) ? feeInput : appSettings.defaultFee;
+      const isPaid = document.getElementById('input-is-paid').checked;
+
+      const cage = cages.find(c => c.id === cageId);
+      if (cage) {
+        cage.status = 'occupied';
+        cage.occupant = occupant;
+        cage.contact = contact;
+        cage.balahibo = balahibo;
+        cage.tiil = tiil;
+        cage.durationMinutes = presetVal === 'open' ? 'open' : (parseInt(durInput) || 60);
+        cage.rateMode = modeVal;
+        cage.hourlyRate = hourlyVal;
+        cage.fee = feeVal;
+        cage.isPaid = isPaid;
+        cage.startTime = Date.now();
+        cage.checkInTime = new Date(cage.startTime).toLocaleString();
+
+        const formattedFee = formatFee(feeVal);
+        const eventNote = modeVal === 'hourly' ? `Hourly Rate (${formatFee(hourlyVal)}/hr)` : `Fixed ${formattedFee}`;
+        saveData();
+        addHistoryEntry(cageId, 'Check-In', occupant, balahibo, tiil, eventNote, formattedFee, isPaid, contact);
+        renderCages();
+        closeModal();
+
+        printTicketForCage(cageId);
+      }
+    }
+
+    function toggleOccupiedPayment(cageId) {
+      const cage = cages.find(c => c.id === cageId);
+      if (cage) {
+        cage.isPaid = !cage.isPaid;
+        saveData();
+        openCageModal(cageId);
+        renderCages();
+      }
+    }
+
+    function transferCage(sourceCageId) {
+      const targetCageId = document.getElementById('transfer-target-id').value;
+      if (!targetCageId) return;
+
+      const sourceCage = cages.find(c => c.id === sourceCageId);
+      const targetCage = cages.find(c => c.id === targetCageId);
+
+      if (sourceCage && targetCage && targetCage.status === 'vacant') {
+        targetCage.status = 'occupied';
+        targetCage.occupant = sourceCage.occupant;
+        targetCage.contact = sourceCage.contact;
+        targetCage.balahibo = sourceCage.balahibo;
+        targetCage.tiil = sourceCage.tiil;
+        targetCage.startTime = sourceCage.startTime;
+        targetCage.fee = sourceCage.fee;
+        targetCage.isPaid = sourceCage.isPaid;
+
+        sourceCage.status = 'vacant';
+        delete sourceCage.occupant;
+        delete sourceCage.contact;
+        delete sourceCage.balahibo;
+        delete sourceCage.tiil;
+        delete sourceCage.startTime;
+        delete sourceCage.fee;
+        delete sourceCage.isPaid;
+
+        saveData();
+        addHistoryEntry(sourceCageId, 'Transfer Out', targetCage.occupant, targetCage.balahibo, targetCage.tiil, `Transferred to ${targetCageId}`);
+        addHistoryEntry(targetCageId, 'Transfer In', targetCage.occupant, targetCage.balahibo, targetCage.tiil, `Transferred from ${sourceCageId}`);
+        
+        renderCages();
+        closeModal();
+      }
+    }
+
+    function reserveCage(cageId) {
+      const occupant = document.getElementById('input-occupant').value || 'Reserved Guest';
+      const contactEl = document.getElementById('input-contact');
+      const contact = contactEl ? (contactEl.value || '-') : '-';
+      const balahibo = document.getElementById('input-balahibo').value || '-';
+      const tiil = document.getElementById('input-tiil').value || '-';
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      const cage = cages.find(c => c.id === cageId);
+      if (cage) {
+        cage.status = 'reserved';
+        cage.occupant = occupant;
+        cage.contact = contact;
+        cage.balahibo = balahibo;
+        cage.tiil = tiil;
+        cage.resvTime = timeStr;
+        
+        saveData();
+        addHistoryEntry(cageId, 'Reserved', occupant, balahibo, tiil, `Expected Arrival: ${timeStr}`, formatFee(appSettings.defaultFee), false, contact);
+        renderCages();
+        closeModal();
+      }
+    }
+
+    function saveReservationDetails(cageId) {
+      const cage = cages.find(c => c.id === cageId);
+      if (cage) {
+        const balahiboEl = document.getElementById('edit-resv-balahibo');
+        const tiilEl = document.getElementById('edit-resv-tiil');
+
+        if (balahiboEl) cage.balahibo = balahiboEl.value.trim() || '-';
+        if (tiilEl) cage.tiil = tiilEl.value.trim() || '-';
+
+        saveData();
+        renderCages();
+        openCageModal(cageId);
+      }
+    }
+
+    function claimReservation(cageId) {
+      const cage = cages.find(c => c.id === cageId);
+      if (cage) {
+        const balahiboEl = document.getElementById('edit-resv-balahibo');
+        const tiilEl = document.getElementById('edit-resv-tiil');
+
+        if (balahiboEl && balahiboEl.value.trim() !== '') {
+          cage.balahibo = balahiboEl.value.trim();
+        }
+        if (tiilEl && tiilEl.value.trim() !== '') {
+          cage.tiil = tiilEl.value.trim();
+        }
+
+        cage.status = 'occupied';
+        cage.startTime = Date.now();
+        cage.checkInTime = new Date(cage.startTime).toLocaleString();
+        cage.fee = cage.fee || appSettings.defaultFee;
+        cage.isPaid = true;
+
+        const formattedFee = formatFee(cage.fee);
+        saveData();
+        addHistoryEntry(cageId, 'Reservation Claimed', cage.occupant, cage.balahibo, cage.tiil, formattedFee, formattedFee, true, cage.contact || '-');
+        renderCages();
+        closeModal();
+
+        printTicketForCage(cageId);
+      }
+    }
+
+    function setMaintenance(cageId) {
+      const cage = cages.find(c => c.id === cageId);
+      if (cage) {
+        cage.status = 'maintenance';
+        cage.note = 'Routine Maintenance';
+        saveData();
+        addHistoryEntry(cageId, 'Maintenance', 'N/A', '-', '-', 'Routine Maintenance');
+        renderCages();
+        closeModal();
+      }
+    }
+
+    function checkOutCage(cageId) {
+      const cage = cages.find(c => c.id === cageId);
+      if (!cage) return;
+
+      if (cage.status === 'occupied') {
+        const startTime = cage.startTime || Date.now();
+        const elapsedMinutes = Math.max(1, Math.floor((Date.now() - startTime) / (1000 * 60)));
+        const initialFee = parseFloat(cage.fee) || appSettings.defaultFee;
+        const hourlyRate = parseFloat(cage.hourlyRate) || appSettings.defaultHourlyRate || 25;
+        const setDurationMins = cage.durationMinutes;
+
+        let finalFee = initialFee;
+        let refundAmount = 0;
+        let durationNote = '';
+
+        if (setDurationMins && setDurationMins !== 'open' && parseInt(setDurationMins) > 0) {
+          const setMins = parseInt(setDurationMins);
+          const setHours = Math.ceil(setMins / 60);
+          const consumedHours = Math.max(1, Math.ceil(elapsedMinutes / 60));
+
+          if (consumedHours < setHours) {
+            finalFee = consumedHours * hourlyRate;
+            refundAmount = Math.max(0, initialFee - finalFee);
+            durationNote = `Used ${elapsedMinutes}m (${consumedHours}h charged). Refund: ₱${refundAmount.toFixed(2)}`;
+          } else {
+            durationNote = `Used ${elapsedMinutes}m (${consumedHours}h charged)`;
+          }
+        } else {
+          durationNote = `Duration: ${elapsedMinutes} mins`;
+        }
+
+        const formattedFinalFee = formatFee(finalFee);
+        const noteText = refundAmount > 0
+          ? `Completed. Refund to Owner: ₱${refundAmount.toFixed(2)} (${durationNote})`
+          : `Completed. ${durationNote}`;
+
+        let confirmMsg = `Confirm Checkout & Release Cage ${cage.id}?\n\n` +
+          `• Owner: ${cage.occupant || 'N/A'}\n` +
+          `• Initial Paid: ${formatFee(initialFee)}\n` +
+          `• Time Consumed: ${elapsedMinutes} minute(s)\n` +
+          `• Final Charged: ${formattedFinalFee}\n`;
+
+        if (refundAmount > 0) {
+          confirmMsg += `\n💰 REFUND DUE TO OWNER: ₱${refundAmount.toFixed(2)}\n`;
+        }
+
+        if (!confirm(confirmMsg)) {
+          return;
+        }
+
+        const checkInTimeStr = cage.checkInTime || new Date(startTime).toLocaleString();
+        const checkoutTimeStr = new Date().toLocaleString();
+
+        addHistoryEntry(
+          cageId,
+          'Checkout/Release',
+          cage.occupant || 'N/A',
+          cage.balahibo || '-',
+          cage.tiil || '-',
+          noteText,
+          formattedFinalFee,
+          cage.isPaid !== false,
+          cage.contact || '-',
+          checkInTimeStr,
+          checkoutTimeStr,
+          initialFee,
+          finalFee
+        );
+
+      } else {
+        addHistoryEntry(
+          cageId,
+          'Checkout/Release',
+          cage.occupant || 'N/A',
+          cage.balahibo || '-',
+          cage.tiil || '-',
+          'Cage Released',
+          formatFee(cage.fee || appSettings.defaultFee),
+          cage.isPaid !== false,
+          cage.contact || '-',
+          'Cage Released',
+          new Date().toLocaleString(),
+          '-',
+          '-'
+        );
+      }
+
+      cage.status = 'vacant';
+      delete cage.occupant;
+      delete cage.contact;
+      delete cage.balahibo;
+      delete cage.tiil;
+      delete cage.startTime;
+      delete cage.checkInTime;
+      delete cage.resvTime;
+      delete cage.note;
+      delete cage.fee;
+      delete cage.isPaid;
+      delete cage.rateMode;
+      delete cage.hourlyRate;
+      delete cage.durationMinutes;
+
+      saveData();
+      renderCages();
+      closeModal();
+    }
+
+    function openAddCageModal() {
+      const newNum = cages.length + 1;
+      const newId = `C-${String(newNum).padStart(3, '0')}`;
+      cages.push({ id: newId, status: 'vacant' });
+      addHistoryEntry(newId, 'Cage Added', 'System', '-', '-', 'New cage created');
+      saveData();
+      renderCages();
+    }
+
+    function resetAllCages() {
+      if (confirm('Reset all cell cages back to vacant?')) {
+        cages = Array.from({ length: 18 }, (_, i) => ({
+          id: `C-${String(i + 1).padStart(3, '0')}`,
+          status: 'vacant'
+        }));
+        addHistoryEntry('SYSTEM', 'System Reset', 'Admin', '-', '-', 'All cages reset');
+        saveData();
+        renderCages();
+      }
+    }
+
+    function openHistoryModal() {
+      renderHistoryLog();
+      document.getElementById('history-modal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeHistoryModal() {
+      document.getElementById('history-modal').classList.add('hidden');
+    }
+
+    function getFilteredHistoryLog() {
+      const query = document.getElementById('history-search') ? document.getElementById('history-search').value.toLowerCase() : '';
+      const startDtVal = document.getElementById('history-start-datetime') ? document.getElementById('history-start-datetime').value : '';
+      const endDtVal = document.getElementById('history-end-datetime') ? document.getElementById('history-end-datetime').value : '';
+      const eventFilterVal = document.getElementById('history-event-filter') ? document.getElementById('history-event-filter').value : 'all';
+
+      const startMs = startDtVal ? new Date(startDtVal).getTime() : 0;
+      const endMs = endDtVal ? new Date(endDtVal).getTime() : Infinity;
+
+      return historyLog.filter(item => {
+        const matchesQuery = !query ||
+          item.cageId.toLowerCase().includes(query) ||
+          item.event.toLowerCase().includes(query) ||
+          item.occupant.toLowerCase().includes(query) ||
+          (item.balahibo && item.balahibo.toLowerCase().includes(query)) ||
+          (item.tiil && item.tiil.toLowerCase().includes(query));
+
+        const matchesEvent = (eventFilterVal === 'all') || (item.event === eventFilterVal);
+
+        const itemMs = item.id || new Date(item.timestamp).getTime();
+        const matchesDateRange = itemMs >= startMs && itemMs <= endMs;
+
+        return matchesQuery && matchesEvent && matchesDateRange;
+      });
+    }
+
+    function renderHistoryLog() {
+      const tbody = document.getElementById('history-table-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      const filtered = getFilteredHistoryLog();
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="py-4 text-center text-slate-500 italic">No history log records found matching selected filters.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-800/40";
+        tr.innerHTML = `
+          <td class="py-2 px-2 text-slate-400 text-[11px] font-mono">${item.timestamp}</td>
+          <td class="py-2 px-2 font-bold text-white font-mono">${item.cageId}</td>
+          <td class="py-2 px-2">
+            <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-200 border border-slate-700">${item.event}</span>
+          </td>
+          <td class="py-2 px-2 text-slate-200 font-medium">${item.occupant}</td>
+          <td class="py-2 px-2 text-slate-300">${item.balahibo || '-'}</td>
+          <td class="py-2 px-2 text-slate-300">${item.tiil || '-'}</td>
+          <td class="py-2 px-2 text-right">
+            <button onclick="reprintHistoryTicket(${item.id})" class="px-2 py-1 bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 rounded text-[10px] font-medium flex items-center space-x-1 ml-auto">
+              <i data-lucide="printer" class="w-3 h-3"></i>
+              <span>Reprint</span>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      lucide.createIcons();
+    }
+
+    function resetHistoryFilters() {
+      if (document.getElementById('history-search')) document.getElementById('history-search').value = '';
+      if (document.getElementById('history-start-datetime')) document.getElementById('history-start-datetime').value = '';
+      if (document.getElementById('history-end-datetime')) document.getElementById('history-end-datetime').value = '';
+      if (document.getElementById('history-event-filter')) document.getElementById('history-event-filter').value = 'all';
+      renderHistoryLog();
+    }
+
+    function printFilteredHistory() {
+      const filtered = getFilteredHistoryLog();
+      const startDtVal = document.getElementById('history-start-datetime') ? document.getElementById('history-start-datetime').value : '';
+      const endDtVal = document.getElementById('history-end-datetime') ? document.getElementById('history-end-datetime').value : '';
+      const rangeText = (startDtVal || endDtVal)
+        ? `${startDtVal ? new Date(startDtVal).toLocaleString() : 'Start'} to ${endDtVal ? new Date(endDtVal).toLocaleString() : 'Now'}`
+        : 'All Time';
+
+      const rowsHtml = filtered.map(item => `
+        <tr>
+          <td style="padding: 5px; border: 1px solid #ccc; font-family: monospace;">${item.timestamp}</td>
+          <td style="padding: 5px; border: 1px solid #ccc; font-weight: bold;">${item.cageId}</td>
+          <td style="padding: 5px; border: 1px solid #ccc;">${item.event}</td>
+          <td style="padding: 5px; border: 1px solid #ccc;">${item.occupant || '-'}</td>
+          <td style="padding: 5px; border: 1px solid #ccc;">${item.balahibo || '-'}</td>
+          <td style="padding: 5px; border: 1px solid #ccc;">${item.tiil || '-'}</td>
+          <td style="padding: 5px; border: 1px solid #ccc; text-align: right;">${item.feeText || '-'}</td>
+        </tr>
+      `).join('');
+
+      const printArea = document.getElementById('print-area');
+      printArea.innerHTML = `
+        <div style="padding: 15px; font-family: Arial, sans-serif; font-size: 11px; color: #000;">
+          <h2 style="font-size: 16px; margin: 0 0 5px 0; text-transform: uppercase;">NEW GALLERA DE MANDAUE - HISTORY AUDIT LOG</h2>
+          <p style="margin: 0 0 12px 0; color: #555; font-size: 10px;">Date & Time Range: ${rangeText} | Total Records: ${filtered.length} | Generated: ${new Date().toLocaleString()}</p>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px;" border="1">
+            <thead>
+              <tr style="background: #f1f5f9; text-align: left; font-weight: bold;">
+                <th style="padding: 6px; border: 1px solid #ccc;">Time</th>
+                <th style="padding: 6px; border: 1px solid #ccc;">Cage</th>
+                <th style="padding: 6px; border: 1px solid #ccc;">Event</th>
+                <th style="padding: 6px; border: 1px solid #ccc;">Owner</th>
+                <th style="padding: 6px; border: 1px solid #ccc;">Balahibo</th>
+                <th style="padding: 6px; border: 1px solid #ccc;">Tiil</th>
+                <th style="padding: 6px; border: 1px solid #ccc; text-align: right;">Fee</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml || `<tr><td colspan="7" style="padding: 10px; text-align: center; color: #888;">No history records found</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      setTimeout(() => {
+        window.print();
+      }, 80);
+    }
+
+    function clearHistoryLog() {
+      openPinModal('clear_history', 'Enter Admin PIN to confirm clearing history audit logs.');
+    }
+
+    /* Print Ticket Matched Exactly to Photo Layout */
+    function printTicketForCage(cageId) {
+      const cage = cages.find(c => c.id === cageId);
+      if (!cage) return;
+
+      const printArea = document.getElementById('print-area');
+      printArea.innerHTML = `
+        <div style="font-family: Arial, sans-serif; max-width: 260px; margin: 0 auto; color: #000; font-weight: bold; padding: 5px;">
+          
+          <div style="text-align: center; font-family: 'Times New Roman', Times, serif; font-size: 16px; font-weight: bold; letter-spacing: 0.3px; margin-bottom: 12px; text-transform: uppercase;">
+            NEW GALLERA DE MANDAUE
+          </div>
+
+          <div style="text-align: left; font-size: 14px; font-weight: bold; margin-bottom: 18px;">
+            ${formatFee(cage.fee)} per cage
+          </div>
+
+          <div style="font-size: 13px; font-weight: bold;">
+            <div style="display: flex; align-items: flex-end; margin-bottom: 10px;">
+              <span style="min-width: 70px;">CAGE#</span>
+              <span style="margin-right: 6px;">:</span>
+              <span style="flex: 1; border-bottom: 1.5px solid #000; padding-left: 4px; font-size: 14px;">${cage.id}</span>
+            </div>
+
+            <div style="display: flex; align-items: flex-end; margin-bottom: 10px;">
+              <span style="min-width: 70px;">OWNER</span>
+              <span style="margin-right: 6px;">:</span>
+              <span style="flex: 1; border-bottom: 1.5px solid #000; padding-left: 4px; font-size: 14px;">${cage.occupant || ''}</span>
+            </div>
+
+            <div style="display: flex; align-items: flex-end; margin-bottom: 10px;">
+              <span style="min-width: 70px;">BALHIBO</span>
+              <span style="margin-right: 6px;">:</span>
+              <span style="flex: 1; border-bottom: 1.5px solid #000; padding-left: 4px; font-size: 14px;">${cage.balahibo || ''}</span>
+            </div>
+
+            <div style="display: flex; align-items: flex-end; margin-bottom: 10px;">
+              <span style="min-width: 70px;">TIIL</span>
+              <span style="margin-right: 6px;">:</span>
+              <span style="flex: 1; border-bottom: 1.5px solid #000; padding-left: 4px; font-size: 14px;">${cage.tiil || ''}</span>
+            </div>
+          </div>
+
+          <div style="text-align: center; font-size: 11px; font-weight: bold; margin-top: 24px; line-height: 1.3; font-family: Arial, sans-serif;">
+            (OBLIGASYON SA TAG-IYA ANG<br>PAGBANTAY SA IYANG MANOK)
+          </div>
+
+        </div>
+      `;
+
+      setTimeout(() => {
+        window.print();
+      }, 80);
+    }
+
+    function reprintHistoryTicket(historyId) {
+      const item = historyLog.find(h => h.id === historyId);
+      if (!item) return;
+
+      const printArea = document.getElementById('print-area');
+      printArea.innerHTML = `
+        <div style="font-family: Arial, sans-serif; max-width: 260px; margin: 0 auto; color: #000; font-weight: bold; padding: 5px;">
+          
+          <div style="text-align: center; font-family: 'Times New Roman', Times, serif; font-size: 16px; font-weight: bold; letter-spacing: 0.3px; margin-bottom: 4px; text-transform: uppercase;">
+            NEW GALLERA DE MANDAUE
+          </div>
+          <div style="text-align: center; font-size: 10px; margin-bottom: 12px; text-transform: uppercase;">
+            [ REPRINT TICKET COPY ]
+          </div>
+
+          <div style="text-align: left; font-size: 14px; font-weight: bold; margin-bottom: 18px;">
+            ${item.feeText || formatFee(appSettings.defaultFee)} per cage
+          </div>
+
+          <div style="font-size: 13px; font-weight: bold;">
+            <div style="display: flex; align-items: flex-end; margin-bottom: 10px;">
+              <span style="min-width: 70px;">CAGE#</span>
+              <span style="margin-right: 6px;">:</span>
+              <span style="flex: 1; border-bottom: 1.5px solid #000; padding-left: 4px; font-size: 14px;">${item.cageId}</span>
+            </div>
+
+            <div style="display: flex; align-items: flex-end; margin-bottom: 10px;">
+              <span style="min-width: 70px;">OWNER</span>
+              <span style="margin-right: 6px;">:</span>
+              <span style="flex: 1; border-bottom: 1.5px solid #000; padding-left: 4px; font-size: 14px;">${item.occupant || ''}</span>
+            </div>
+
+            <div style="display: flex; align-items: flex-end; margin-bottom: 10px;">
+              <span style="min-width: 70px;">BALHIBO</span>
+              <span style="margin-right: 6px;">:</span>
+              <span style="flex: 1; border-bottom: 1.5px solid #000; padding-left: 4px; font-size: 14px;">${item.balahibo || ''}</span>
+            </div>
+
+            <div style="display: flex; align-items: flex-end; margin-bottom: 10px;">
+              <span style="min-width: 70px;">TIIL</span>
+              <span style="margin-right: 6px;">:</span>
+              <span style="flex: 1; border-bottom: 1.5px solid #000; padding-left: 4px; font-size: 14px;">${item.tiil || ''}</span>
+            </div>
+          </div>
+
+          <div style="text-align: center; font-size: 11px; font-weight: bold; margin-top: 24px; line-height: 1.3; font-family: Arial, sans-serif;">
+            (OBLIGASYON SA TAG-IYA ANG<br>PAGBANTAY SA IYANG MANOK)
+          </div>
+
+        </div>
+      `;
+
+      setTimeout(() => {
+        window.print();
+      }, 80);
+    }
+
+    function openReportModal() {
+      document.getElementById('report-modal').classList.remove('hidden');
+    }
+
+    function closeReportModal() {
+      document.getElementById('report-modal').classList.add('hidden');
+    }
+
+    function getFilteredHistory() {
+      const startDateVal = document.getElementById('export-start-date') ? document.getElementById('export-start-date').value : '';
+      const endDateVal = document.getElementById('export-end-date') ? document.getElementById('export-end-date').value : '';
+
+      const startMs = startDateVal ? new Date(startDateVal + 'T00:00:00').getTime() : 0;
+      const endMs = endDateVal ? new Date(endDateVal + 'T23:59:59').getTime() : Infinity;
+
+      return historyLog.filter(item => {
+        const itemMs = item.id || new Date(item.timestamp).getTime();
+        return itemMs >= startMs && itemMs <= endMs;
+      });
+    }
+
+    function getActualPaidEvents(filteredHistory) {
+      return filteredHistory.filter(h => {
+        // Exclude non-checkout events (Transfer In/Out, Check-In, Reservation Claimed, Maintenance, Cage Removed)
+        if (h.event !== 'Checkout/Release') return false;
+
+        // Exclude non-occupant or admin system releases (e.g. Owner = N/A or Admin)
+        if (!h.occupant || h.occupant === 'N/A' || h.occupant === 'Admin' || h.occupant === 'System') return false;
+
+        // Exclude non-timestamp check-in entries (e.g. 'Cage Released', 'Cage Removed')
+        if (h.checkInTime === 'Cage Released' || h.checkInTime === 'Cage Removed' || h.checkInTime === 'N/A') return false;
+
+        // Must have actual positive paid amount
+        const pAmt = parseFloat(h.paidAmount);
+        if (!isNaN(pAmt) && pAmt > 0) return true;
+
+        if (h.isPaid !== false && h.feeText && h.feeText !== '-') {
+          const val = parseFloat(String(h.feeText).replace(/[^0-9.]/g, ''));
+          if (!isNaN(val) && val > 0) return true;
+        }
+
+        return false;
+      });
+    }
+
+    function calculateSalesTotal(filteredHistory) {
+      const paidEvents = getActualPaidEvents(filteredHistory);
+      let total = 0;
+      paidEvents.forEach(h => {
+        let pAmt = parseFloat(h.paidAmount);
+        if (!isNaN(pAmt)) {
+          total += pAmt;
+        } else if (h.feeText && h.feeText !== '-') {
+          const val = parseFloat(String(h.feeText).replace(/[^0-9.]/g, '')) || 0;
+          total += val;
+        }
+      });
+      return total;
+    }
+
+    function exportExcelReport() {
+      const filteredHist = getFilteredHistory();
+      const paidEvents = getActualPaidEvents(filteredHist);
+
+      let totalPaidAmount = 0;
+
+      const excelRows = paidEvents.map(h => {
+        const timeVal = h.checkoutTime || h.timestamp || '-';
+        const cageVal = h.cageId || '-';
+        const eventVal = h.event || 'Checkout/Release';
+        const ownerVal = h.occupant || '-';
+        const timePaidVal = h.checkInTime || h.timestamp || '-';
+
+        let pAmtNum = 0;
+        if (h.paidAmount != null && h.paidAmount !== '-' && !isNaN(parseFloat(h.paidAmount))) {
+          pAmtNum = parseFloat(h.paidAmount);
+        } else if (h.feeText && h.feeText !== '-') {
+          pAmtNum = parseFloat(String(h.feeText).replace(/[^0-9.]/g, '')) || 0;
+        }
+
+        totalPaidAmount += pAmtNum;
+
+        return {
+          'Time': timeVal,
+          'Cage': cageVal,
+          'Event': eventVal,
+          'Owner': ownerVal,
+          'Time Paid': timePaidVal,
+          'Paid Amount': pAmtNum.toFixed(2)
+        };
+      });
+
+      if (excelRows.length === 0) {
+        excelRows.push({
+          'Time': '-',
+          'Cage': '-',
+          'Event': '-',
+          'Owner': 'No Paid Events',
+          'Time Paid': '-',
+          'Paid Amount': '0.00'
+        });
+      }
+
+      excelRows.push({
+        'Time': 'TOTAL',
+        'Cage': '',
+        'Event': '',
+        'Owner': '',
+        'Time Paid': '',
+        'Paid Amount': totalPaidAmount.toFixed(2)
+      });
+
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(excelRows);
+
+      worksheet['!cols'] = [
+        { wch: 25 },
+        { wch: 10 },
+        { wch: 18 },
+        { wch: 15 },
+        { wch: 25 },
+        { wch: 14 }
+      ];
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Gallera Sales Report');
+      XLSX.writeFile(workbook, `Gallera_Sales_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+
+    function exportPDFReport() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      const filteredHist = getFilteredHistory();
+      const paidEvents = getActualPaidEvents(filteredHist);
+
+      let totalPaidAmount = 0;
+
+      const tableData = paidEvents.map(h => {
+        const timeVal = h.checkoutTime || h.timestamp || '-';
+        const cageVal = h.cageId || '-';
+        const eventVal = h.event || 'Checkout/Release';
+        const ownerVal = h.occupant || '-';
+        const timePaidVal = h.checkInTime || h.timestamp || '-';
+
+        let pAmtNum = 0;
+        if (h.paidAmount != null && h.paidAmount !== '-' && !isNaN(parseFloat(h.paidAmount))) {
+          pAmtNum = parseFloat(h.paidAmount);
+        } else if (h.feeText && h.feeText !== '-') {
+          pAmtNum = parseFloat(String(h.feeText).replace(/[^0-9.]/g, '')) || 0;
+        }
+
+        totalPaidAmount += pAmtNum;
+
+        return [
+          timeVal,
+          cageVal,
+          eventVal,
+          ownerVal,
+          timePaidVal,
+          pAmtNum.toFixed(2)
+        ];
+      });
+
+      if (tableData.length === 0) {
+        tableData.push(['-', '-', '-', 'No Paid Events', '-', '0.00']);
+      }
+
+      tableData.push([
+        'TOTAL',
+        '',
+        '',
+        '',
+        '',
+        totalPaidAmount.toFixed(2)
+      ]);
+
+      const startDateVal = document.getElementById('export-start-date') ? document.getElementById('export-start-date').value : '';
+      const endDateVal = document.getElementById('export-end-date') ? document.getElementById('export-end-date').value : '';
+      const rangeText = (startDateVal || endDateVal) ? `${startDateVal || 'Start'} to ${endDateVal || 'Today'}` : 'All Time';
+
+      doc.setFontSize(16);
+      doc.text("NEW GALLERA DE MANDAUE - Sales Report", 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Generated on: ${new Date().toLocaleString()} | Date Range: ${rangeText}`, 14, 22);
+
+      doc.autoTable({
+        startY: 28,
+        head: [['Time', 'Cage', 'Event', 'Owner', 'Time Paid', 'Paid Amount']],
+        body: tableData,
+      });
+
+      doc.save(`Gallera_Sales_Report_${new Date().toISOString().slice(0,10)}.pdf`);
+    }
+
+    function printFinalReport() {
+      const filteredHist = getFilteredHistory();
+      const paidEvents = getActualPaidEvents(filteredHist);
+
+      let totalPaidAmount = 0;
+
+      const rowsHtml = paidEvents.map(h => {
+        const timeVal = h.checkoutTime || h.timestamp || '-';
+        const cageVal = h.cageId || '-';
+        const eventVal = h.event || 'Checkout/Release';
+        const ownerVal = h.occupant || '-';
+        const timePaidVal = h.checkInTime || h.timestamp || '-';
+
+        let pAmtNum = 0;
+        if (h.paidAmount != null && h.paidAmount !== '-' && !isNaN(parseFloat(h.paidAmount))) {
+          pAmtNum = parseFloat(h.paidAmount);
+        } else if (h.feeText && h.feeText !== '-') {
+          pAmtNum = parseFloat(String(h.feeText).replace(/[^0-9.]/g, '')) || 0;
+        }
+
+        totalPaidAmount += pAmtNum;
+
+        return `
+          <tr>
+            <td style="padding: 6px; border: 1px solid #ccc; font-family: monospace;">${timeVal}</td>
+            <td style="padding: 6px; border: 1px solid #ccc; font-weight: bold;">${cageVal}</td>
+            <td style="padding: 6px; border: 1px solid #ccc;">${eventVal}</td>
+            <td style="padding: 6px; border: 1px solid #ccc;">${ownerVal}</td>
+            <td style="padding: 6px; border: 1px solid #ccc; font-family: monospace;">${timePaidVal}</td>
+            <td style="padding: 6px; border: 1px solid #ccc; text-align: right;">${pAmtNum.toFixed(2)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const startDateVal = document.getElementById('export-start-date') ? document.getElementById('export-start-date').value : '';
+      const endDateVal = document.getElementById('export-end-date') ? document.getElementById('export-end-date').value : '';
+      const rangeText = (startDateVal || endDateVal) ? `${startDateVal || 'Start'} to ${endDateVal || 'Today'}` : 'All Time';
+
+      const printArea = document.getElementById('print-area');
+      printArea.innerHTML = `
+        <div style="padding: 15px; font-family: Arial, sans-serif; font-size: 11px;">
+          <h2 style="font-size: 16px; margin: 0 0 5px 0;">NEW GALLERA DE MANDAUE - SALES REPORT</h2>
+          <p style="margin: 0 0 12px 0; color: #555;">Date Range: ${rangeText} | Generated: ${new Date().toLocaleString()}</p>
+
+          <table style="width: 100%; border-collapse: collapse;" border="1">
+            <thead>
+              <tr style="background: #f1f5f9; text-align: left; font-weight: bold;">
+                <th style="padding: 6px; border: 1px solid #ccc;">Time</th>
+                <th style="padding: 6px; border: 1px solid #ccc;">Cage</th>
+                <th style="padding: 6px; border: 1px solid #ccc;">Event</th>
+                <th style="padding: 6px; border: 1px solid #ccc;">Owner</th>
+                <th style="padding: 6px; border: 1px solid #ccc;">Time Paid</th>
+                <th style="padding: 6px; border: 1px solid #ccc; text-align: right;">Paid Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml || `<tr><td colspan="6" style="padding: 10px; text-align: center; color: #888;">No paid events found</td></tr>`}
+              <tr style="font-weight: bold; background: #f8fafc;">
+                <td style="padding: 6px; border: 1px solid #ccc;" colspan="5">TOTAL</td>
+                <td style="padding: 6px; border: 1px solid #ccc; text-align: right;">${totalPaidAmount.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      setTimeout(() => {
+        window.print();
+      }, 80);
+    }
+
+    setInterval(() => {
+      renderCages();
+    }, 1000);
+
+    renderCages();
+  </script>
+</body>
+</html>
